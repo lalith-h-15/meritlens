@@ -1,6 +1,34 @@
-# MeritLens — CAP backend working copy
+# MeritLens
 
-This folder contains the SAP CAP backend portion extracted from the uploaded `MeritLens(1).zip` archive. The React/Vite frontend, compiled `dist` output, nested frontend ZIP, generated deployment files, and local deployment environment files have been excluded.
+This repository contains the SAP CAP backend and the React/Vite frontend for MeritLens. The frontend lives in `frontend/` so it can be developed and built independently while keeping the CAP backend at the repository root.
+
+## Frontend contents
+
+- `frontend/src/pages/`: landing, login, registration, employee, and manager pages.
+- `frontend/src/layouts/`: employee and manager application layouts.
+- `frontend/src/context/`: authentication and orchestrator state.
+- `frontend/src/lib/api.ts`: shared API client and authentication/orchestrator requests.
+- `frontend/src/index.css`, `frontend/tailwind.config.js`: styles and Tailwind configuration.
+- `frontend/package.json`: frontend dependencies and Vite scripts.
+
+The compiled `frontend/dist/` output and installed `frontend/node_modules/` are local build artifacts and are not committed.
+
+### Run and build the frontend
+
+```bash
+npm ci --prefix frontend
+npm run dev --prefix frontend
+```
+
+Create a production build with:
+
+```bash
+npm run build --prefix frontend
+```
+
+The frontend's API client currently targets `http://localhost:5100`; configure the backend to be available there when exercising API-backed features.
+
+## Backend contents
 
 ## What is present in the source archive
 
@@ -8,7 +36,7 @@ This folder contains the SAP CAP backend portion extracted from the uploaded `Me
 - `srv/meritlens-service.cds`: OData projections for those six entities.
 - `db/data/meritlens-Employees.csv`: sample employee seed data.
 
-CAP automatically exposes CRUD operations for the projected entities. The extracted source does **not** contain custom JavaScript/TypeScript service handlers, review-analysis rules, resolution actions, or audit workflow handlers. Those still need to be implemented and tested; this is a clean backend-only starting copy, not a claim that MeritLens backend is complete.
+CAP automatically exposes CRUD operations for the projected entities. The extracted backend source does **not** contain custom JavaScript/TypeScript service handlers, review-analysis rules, resolution actions, or audit workflow handlers. Those still need to be implemented and tested; the presence of the frontend does not mean the backend is complete.
 
 ## Requirements
 
@@ -41,3 +69,9 @@ npm run build
 7. Configure HANA/XSUAA and BTP destinations only after local behaviour is tested.
 
 Do not add real employee data or credentials to this repository. Use synthetic records for development.
+
+## Frontend addition recorded
+
+The frontend was copied from the supplied `MeritLens Final` project folder into `frontend/`. The backend files at the repository root were preserved, and the frontend's local dependencies and generated build output were excluded. `frontend/dist/` was added to `.gitignore`.
+
+The frontend was installed with `npm ci --prefix frontend` and verified with `npm run build --prefix frontend`. The change was committed as `bda8d70` (`Add MeritLens frontend`) and pushed to the GitHub branch `vaibhav-frontend`.
