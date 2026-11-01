@@ -1,5 +1,6 @@
 
 import cds from "@sap/cds";
+import { careerConfig, fetchEvidencePackage, checkIdentity, buildContextEntries } from "./lib/careerContext.js";
 
 const { SELECT, INSERT, UPDATE } = cds.ql;
 
@@ -68,6 +69,9 @@ export default cds.service.impl(async function () {
 
         // Rule 2: Potentially overlooked contributions
         for (const context of contexts) {
+            // Imported career data is context for the reviewer, never an automatic finding.
+            if (context.reportedBy === "career-orchestrator") continue;
+
             const description = (context.description || "").toLowerCase();
 
             if (
@@ -300,5 +304,95 @@ export default cds.service.impl(async function () {
         };
     });
 
-    
+    // ==========================================
+    // 5. CAREER CONTEXT IMPORT (Career Orchestrator -> ContextEntries)
+    // ==========================================
+
+    this.on("importCareerContext", async (req) => {
+        const { reviewID } = req.data;
+
+        if (!reviewID) {
+            return req.error(400, "Review ID is required.");
+        }
+
+        const tx = cds.tx(req);
+
+        const review = await tx.run(
+            SELECT.one.from(Reviews).where({ ID: reviewID })
+        );
+
+        if (!review) {
+            return req.error(404, "Review not found.");
+        }
+
+        if (review.status === "COMPLETED") {
+            return req.error(409, "Completed reviews cannot be changed.");
+        }
+
+        const actorId = req.user?.id || "unknown";
+        const audit = (action, details) =>
+            tx.run(INSERT.into(AuditLogs).entries({ review_ID: reviewID, actorId, action, details }));
+
+        // A failed import must never block the review: record it and carry on.
+        const unavailable = async (reason) => {
+            await audit("CAREER_CONTEXT_UNAVAILABLE", reason);
+            return {
+                reviewID,
+                imported: 0,
+                skipped: 0,
+                status: "UNAVAILABLE",
+                message: `Career context not imported: ${reason}. The review can continue without it.`
+            };
+        };
+
+        const config = careerConfig();
+        if (!config.configured) {
+            return unavailable("integration is not configured");
+        }
+
+        const result = await fetchEvidencePackage(review.employee_ID, config);
+        if (!result.ok) {
+            return unavailable(result.reason);
+        }
+
+        const problem = checkIdentity(result.packet, review.employee_ID);
+        if (problem) {
+            return unavailable(problem);
+        }
+
+        let imported = 0;
+        let skipped = 0;
+
+        for (const entry of buildContextEntries(result.packet)) {
+            const existing = await tx.run(
+                SELECT.one.from(ContextEntries).where({
+                    review_ID: reviewID,
+                    contextType: entry.contextType,
+                    description: entry.description
+                })
+            );
+
+            if (existing) {
+                skipped++;
+                continue;
+            }
+
+            await tx.run(INSERT.into(ContextEntries).entries({ review_ID: reviewID, ...entry }));
+            imported++;
+        }
+
+        await audit(
+            "CAREER_CONTEXT_IMPORTED",
+            `${imported} imported, ${skipped} already present. Packet generated ${result.packet.generatedAt}.`
+        );
+
+        return {
+            reviewID,
+            imported,
+            skipped,
+            status: "IMPORTED",
+            message: `${imported} career context entries imported.`
+        };
+    });
+
 });

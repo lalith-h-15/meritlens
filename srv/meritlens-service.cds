@@ -24,6 +24,14 @@ type FindingResolutionResult {
     status : String;
 }
 
+type CareerContextImportResult {
+    reviewID : UUID;
+    imported : Integer;
+    skipped : Integer;
+    status : String;
+    message : String;
+}
+
 service MeritLensService {
     entity Employees as projection on meritlens.Employees;
     entity Reviews as projection on meritlens.Reviews;
@@ -46,4 +54,7 @@ service MeritLensService {
 action submitReview(reviewID : UUID) returns ReviewLifecycleResult;
 
 action completeReview(reviewID : UUID) returns ReviewLifecycleResult;
+
+    // Pulls approved career context from Career Orchestrator into ContextEntries for ONE review.
+    action importCareerContext(reviewID : UUID) returns CareerContextImportResult;
 }

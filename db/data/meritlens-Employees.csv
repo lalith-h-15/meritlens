@@ -3,3 +3,4 @@ ID,employeeCode,firstName,lastName,department,jobTitle,managerId,active
 22222222-2222-4222-8222-222222222222,EMP002,Priya,Rao,Human Resources,HR Analyst,MGR002,true
 33333333-3333-4333-8333-333333333333,EMP003,Rohan,Mehta,Engineering,Backend Developer,MGR001,true
 44444444-4444-4444-8444-444444444444,EMP004,Ananya,Shah,Product,Product Analyst,MGR003,true
+55555555-5555-4555-8555-555555555555,EMP005,Anika,Sharma,Engineering,Junior Full-Stack Developer,MGR001,true
