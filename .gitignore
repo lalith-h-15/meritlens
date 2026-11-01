@@ -1,5 +1,6 @@
 node_modules/
 gen/
+/frontend/dist/
 db.sqlite
 *.sqlite
 .env
