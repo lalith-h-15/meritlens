@@ -1,0 +1,15 @@
+node_modules/
+gen/
+mta_archives/
+.env
+.env.*
+!.env.example
+default-env.json
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.DS_Store
+
+# MTA build output
+.MeritLens_BTP_Integration_Ready_mta_build_tmp/
+*.mtar

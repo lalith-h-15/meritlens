@@ -1,0 +1,12 @@
+{
+  "welcomeFile": "/odata/v4/merit-lens/",
+  "authenticationMethod": "route",
+  "routes": [
+    {
+      "source": "^/odata/(.*)$",
+      "target": "/odata/$1",
+      "authenticationType": "xsuaa",
+      "destination": "meritlens-backend"
+    }
+  ]
+}

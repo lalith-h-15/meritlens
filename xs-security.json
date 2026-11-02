@@ -1,5 +1,34 @@
+
 {
-  "scopes": [],
+  "xsappname": "na-db8634cd-4f11-48b4-a468-043ada94205f",
+"tenant-mode": "shared",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Reviewer",
+      "description": "Access and manage assigned performance reviews"
+    },
+    {
+      "name": "$XSAPPNAME.HRAdmin",
+      "description": "Administrative access to MeritLens review operations"
+    }
+  ],
   "attributes": [],
-  "role-templates": []
+  "role-templates": [
+    {
+      "name": "Reviewer",
+      "description": "Performance review management",
+      "scope-references": [
+        "$XSAPPNAME.Reviewer"
+      ]
+    },
+    {
+      "name": "HRAdmin",
+      "description": "HR administrative access",
+      "scope-references": [
+        "$XSAPPNAME.Reviewer",
+        "$XSAPPNAME.HRAdmin"
+      ]
+    }
+  ]
 }
+

@@ -1,43 +1,50 @@
-# MeritLens — CAP backend working copy
+# MeritLens — CAP backend and Approuter
 
-This folder contains the SAP CAP backend portion extracted from the uploaded `MeritLens(1).zip` archive. The React/Vite frontend, compiled `dist` output, nested frontend ZIP, generated deployment files, and local deployment environment files have been excluded.
+This repository contains the SAP CAP backend and Cloud Foundry Approuter portion of MeritLens. The React/Vite frontend was not included in the uploaded source archive.
 
-## What is present in the source archive
+## Main components
 
-- `db/schema.cds`: Employees, Reviews, Evidence, ContextEntries, Findings, and AuditLogs entities.
-- `srv/meritlens-service.cds`: OData projections for those six entities.
-- `db/data/meritlens-Employees.csv`: sample employee seed data.
+- `db/schema.cds` — Employees, Reviews, Evidence, ContextEntries, Findings, and AuditLogs.
+- `db/data/` — synthetic employee, review and context seed records for deployment/demo testing.
+- `srv/meritlens-service.cds` — OData projections and actions.
+- `srv/meritlens-service.js` — deterministic review analysis, finding resolution, review lifecycle, authenticated audit logging, and Career Orchestrator evidence import.
+- `approuter/` — XSUAA-protected entry point routing OData requests through the BTP destination `meritlens-backend`.
+- `xs-security.json` — `Reviewer` and `HRAdmin` role templates.
+- `mta.yaml` — MTA modules and bindings to the existing XSUAA, HDI, and Destination Service instances.
 
-CAP automatically exposes CRUD operations for the projected entities. The extracted source does **not** contain custom JavaScript/TypeScript service handlers, review-analysis rules, resolution actions, or audit workflow handlers. Those still need to be implemented and tested; this is a clean backend-only starting copy, not a claim that MeritLens backend is complete.
+## Local development
 
-## Requirements
-
-- Node.js LTS
-- npm
-
-## Run locally
+Requirements: Node.js LTS and npm.
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-The CAP service should start locally with SQLite. Open the service root shown in the terminal and inspect `$metadata` to confirm the OData entity fields.
+The local CAP profile uses SQLite and a mock `reviewer` user for development only. Production configuration uses HANA and XSUAA. Never use the mock user or SQLite profile as evidence of production authentication. The CSV seed data includes a synthetic draft review and context entry so the review-analysis workflow can be exercised after database deployment.
 
 ## Build
 
 ```bash
-npm run build
+npm ci
+npx cds build --production
 ```
 
-## Important next backend work
+Build the MTA archive with the Cloud MTA Build Tool (`mbt build`) in an environment where the required dependencies and SAP build tools are installed.
 
-1. Verify entity relationships, required fields, enums, and constraints.
-2. Implement review submission and lifecycle transitions.
-3. Implement evidence/context validation and the deterministic finding engine.
-4. Implement human resolution and append-only audit events.
-5. Add authentication/authorization and employee-level access controls.
-6. Add automated tests for CRUD, review analysis, permissions, and audit behaviour.
-7. Configure HANA/XSUAA and BTP destinations only after local behaviour is tested.
+## Career Orchestrator import
 
-Do not add real employee data or credentials to this repository. Use synthetic records for development.
+The action `importCareerContext(reviewID)` reads the server-side environment variables `ORCHESTRATOR_URL` and `INTEGRATION_API_KEY`. Keep the API key out of source control and frontend code. Imported records are synthetic demo evidence and remain `verified=false`.
+
+## Verified BTP deployment (2 November 2026)
+
+The CAP backend was successfully deployed to SAP BTP Cloud Foundry in the `dev` space. Both `Meritlens-srv` and `Meritlens-approuter` were confirmed running (1/1 instances). The live `analyseReview` OData action returned HTTP 200 and created two findings. The `REVIEW_ANALYZED` audit event was also retrieved from `AuditLogs`. The HANA NCLOB duplicate-check fix was therefore verified in the live action. See [`FINAL_VERIFICATION.md`](FINAL_VERIFICATION.md) for the recorded test outcome.
+
+Read [`DEPLOYMENT_NOTES.md`](DEPLOYMENT_NOTES.md) before deploying. In particular, the BTP destination `meritlens-backend` must have `HTML5.ForwardAuthToken=true` while using `NoAuthentication`, and the Destination Service instance must be bound to the Approuter.
+
+## Security and demo limitations
+
+- The service currently requires the `Reviewer` role. Row-level authorization restricting reviewers to assigned employees/reviews is not implemented.
+- The included seed data is synthetic and contains no live employee or SuccessFactors records.
+- SuccessFactors is not connected; Career Orchestrator integration uses synthetic demo evidence.
+- Do not commit credentials, `cf env` output, service keys, or API tokens.

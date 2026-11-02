@@ -9,20 +9,40 @@
     "build": "cds build --production"
   },
   "dependencies": {
-    "@sap/cds": "^10"
+    "@cap-js/hana": "^3",
+    "@sap/cds": "^10",
+    "@sap/xssec": "^4.16.0"
   },
   "devDependencies": {
     "@cap-js/sqlite": "^3",
     "@sap/cds-dk": "^10"
   },
-  "cds": {
-    "requires": {
-      "db": {
-        "kind": "sqlite",
-        "credentials": {
-          "url": "db.sqlite"
+  
+"cds": {
+  "requires": {
+    "db": {
+      "kind": "sqlite",
+      "credentials": {
+        "url": "db.sqlite"
+      }
+    },
+    "auth": {
+      "kind": "mocked",
+      "users": {
+        "reviewer": {
+          "password": "reviewer",
+          "roles": ["Reviewer"]
         }
+      }
+    },
+    "[production]": {
+      "db": {
+        "kind": "hana"
+      },
+      "auth": {
+        "kind": "xsuaa"
       }
     }
   }
+}
 }

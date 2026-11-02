@@ -1,15 +1,19 @@
+
 _schema-version: 3.3.0
 ID: Meritlens
 version: 1.0.0
-description: "A simple CAP project."
+description: "MeritLens CAP backend"
+
 parameters:
   enable-parallel-deployments: true
+
 build-parameters:
   before-all:
     - builder: custom
       commands:
         - npm ci
         - npx cds build --production
+
 modules:
   - name: Meritlens-srv
     type: nodejs
@@ -19,13 +23,23 @@ modules:
       buildpack: nodejs_buildpack
     build-parameters:
       builder: npm-ci
-    provides:
-      - name: srv-api # required by consumers of CAP services (e.g. approuter)
-        properties:
-          srv-url: ${default-url}
     requires:
       - name: Meritlens-auth
       - name: Meritlens-db
+
+  - name: Meritlens-approuter
+    type: approuter.nodejs
+    path: approuter
+    parameters:
+      memory: 256M
+      disk-quota: 512M
+      env:
+        TENANT_HOST_PATTERN: '^(.*)-dev-meritlens-approuter\.cfapps\.ap21\.hana\.ondemand\.com$'
+    build-parameters:
+      builder: npm-ci
+    requires:
+      - name: Meritlens-auth
+      - name: Meritlens-destination
 
   - name: Meritlens-db-deployer
     type: hdb
@@ -34,47 +48,20 @@ modules:
       buildpack: nodejs_buildpack
     requires:
       - name: Meritlens-db
-  - name: Meritlens
-    type: approuter.nodejs
-    path: .deploy/app-router
-    parameters:
-      keep-existing-routes: true
-      disk-quota: 256M
-      memory: 256M
-    requires:
-      - name: srv-api
-        group: destinations
-        properties:
-          name: srv-api # must be used in xs-app.json as well
-          url: ~{srv-url}
-          forwardAuthToken: true
-      - name: Meritlens-auth
-    provides:
-      - name: app-api
-        properties:
-          app-protocol: ${protocol}
-          app-uri: ${default-uri}
 
 resources:
   - name: Meritlens-auth
-    type: org.cloudfoundry.managed-service
+    type: org.cloudfoundry.existing-service
     parameters:
-      service: xsuaa
-      service-plan: application
-      path: ./xs-security.json
-      config:
-        xsappname: Meritlens-${org}-${space}
-        tenant-mode: dedicated
-        oauth2-configuration:
-          credential-types:
-            - "binding-secret"
-            - "x509"
-          redirect-uris:
-            - https://*~{app-api/app-uri}/**
-    requires:
-      - name: app-api
+      service-name: meritlens-xsuaa
+
   - name: Meritlens-db
-    type: com.sap.xs.hdi-container
+    type: org.cloudfoundry.existing-service
     parameters:
-      service: hana
-      service-plan: hdi-shared
+      service-name: meritlens-hdi
+
+  - name: Meritlens-destination
+    type: org.cloudfoundry.existing-service
+    parameters:
+      service-name: career-meritlens-destination
+
