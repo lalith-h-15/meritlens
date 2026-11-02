@@ -1,5 +1,6 @@
 
 import cds from "@sap/cds";
+import { runMeritLensAnalysis } from "./skills-analysis/meritlens-pipeline.js";
 
 const { SELECT, INSERT, UPDATE } = cds.ql;
 
@@ -7,6 +8,7 @@ export default cds.service.impl(async function () {
     const {
         Reviews,
         Evidence,
+        EvidenceSkillMappings,
         ContextEntries,
         Findings,
         AuditLogs
@@ -17,119 +19,177 @@ export default cds.service.impl(async function () {
     // ==========================================
 
     this.on("analyseReview", async (req) => {
-        const { reviewID } = req.data;
+    const { reviewID } = req.data;
 
-        if (!reviewID) {
-            return req.error(400, "Review ID is required.");
+    if (!reviewID) {
+        return req.error(400, "Review ID is required.");
+    }
+
+    const tx = cds.tx(req);
+
+    const review = await tx.run(
+        SELECT.one.from(Reviews).where({ ID: reviewID })
+    );
+
+    if (!review) {
+        return req.error(404, "Review not found.");
+    }
+
+    // 1. Retrieve evidence and context for this review
+    const evidence = await tx.run(
+        SELECT.from(Evidence).where({ review_ID: reviewID })
+    );
+
+    const contexts = await tx.run(
+        SELECT.from(ContextEntries).where({ review_ID: reviewID })
+    );
+
+    // 2. Retrieve skill mappings for the review's evidence
+    const evidenceIDs = evidence.map(item => item.ID);
+
+    const mappings = evidenceIDs.length
+        ? await tx.run(
+            SELECT.from(EvidenceSkillMappings).where({
+                evidence_ID: { in: evidenceIDs }
+            })
+        )
+        : [];
+
+    const findings = [];
+    let totalClaims = 0;
+    let analysisMode = "RULE_BASED";
+
+    // 3. Analyze manager claims against evidence
+    const summary = review.managerSummary || "";
+
+    if (summary.trim()) {
+       const pipelineResult = await runMeritLensAnalysis({
+            reviewText: summary,
+            evidenceRows: evidence,
+            mappingRows: mappings
+        });
+
+        analysisMode = pipelineResult.analysisMode;
+        totalClaims = pipelineResult.analysis.totalClaims;
+
+        for (const result of pipelineResult.analysis.findings) {
+            let findingType = result.status;
+
+            const severity = [
+                "POTENTIAL_CONTRADICTION",
+                "MIXED_EVIDENCE"
+            ].includes(result.status)
+                ? "WARNING"
+                : "INFO";
+
+            const rationale = JSON.stringify({
+                skill: result.skill,
+                managerClaim: result.managerClaim,
+                explanation: result.explanation,
+                evidenceCount: result.evidenceCount,
+                supportingEvidence: result.supportingEvidence,
+                adverseEvidence: result.adverseEvidence,
+                requiresHumanReview: true
+            });
+
+            findings.push({
+                findingType,
+                severity,
+                description: result.originalStatement,
+                rationale,
+                status: "OPEN"
+            });
         }
+    }
 
-        const tx = cds.tx(req);
-
-        const review = await tx.run(
-            SELECT.one.from(Reviews).where({ ID: reviewID })
+    // Rule 1: Documentation evidence gap
+    if (summary.toLowerCase().includes("documentation")) {
+        const hasDocumentationEvidence = evidence.some((item) =>
+            `${item.title || ""} ${item.description || ""}`
+                .toLowerCase()
+                .includes("documentation")
         );
 
-        if (!review) {
-            return req.error(404, "Review not found.");
+        if (!hasDocumentationEvidence) {
+            findings.push({
+                findingType: "EVIDENCE_GAP",
+                severity: "INFO",
+                description:
+                    "The manager mentioned documentation concerns, but no documentation-specific evidence was supplied.",
+                rationale:
+                    "The claim needs supporting evidence before a conclusion can be drawn.",
+                status: "OPEN"
+            });
         }
+    }
 
-        const evidence = await tx.run(
-            SELECT.from(Evidence).where({ review_ID: reviewID })
+    // Rule 2: Potentially overlooked contributions
+    for (const context of contexts) {
+        const description = (context.description || "").toLowerCase();
+
+        if (
+            description.includes("helped") ||
+            description.includes("contribution") ||
+            description.includes("resolved")
+        ) {
+            findings.push({
+                findingType: "OVERLOOKED_CONTRIBUTION",
+                severity: "INFO",
+                description:
+                    "Additional contribution may not be reflected in the manager's summary.",
+                rationale: context.description,
+                status: "OPEN"
+            });
+        }
+    }
+
+    // Rule 3: Save findings without duplicates
+    let newlyCreated = 0;
+
+    for (const finding of findings) {
+        const existing = await tx.run(
+            SELECT.one.from(Findings).where({
+                review_ID: reviewID,
+                findingType: finding.findingType,
+                rationale: finding.rationale
+            })
         );
 
-        const contexts = await tx.run(
-            SELECT.from(ContextEntries).where({ review_ID: reviewID })
-        );
-
-        const findings = [];
-
-        // Rule 1: Documentation evidence gap
-        const summary = (review.managerSummary || "").toLowerCase();
-
-        if (summary.includes("documentation")) {
-            const hasDocumentationEvidence = evidence.some((item) =>
-                `${item.title || ""} ${item.description || ""}`
-                    .toLowerCase()
-                    .includes("documentation")
-            );
-
-            if (!hasDocumentationEvidence) {
-                findings.push({
-                    findingType: "EVIDENCE_GAP",
-                    severity: "INFO",
-                    description:
-                        "The manager mentioned documentation concerns, but no documentation-specific evidence was supplied.",
-                    rationale:
-                        "The claim needs supporting evidence before a conclusion can be drawn.",
-                    status: "OPEN"
-                });
-            }
-        }
-
-        // Rule 2: Potentially overlooked contributions
-        for (const context of contexts) {
-            const description = (context.description || "").toLowerCase();
-
-            if (
-                description.includes("helped") ||
-                description.includes("contribution") ||
-                description.includes("resolved")
-            ) {
-                findings.push({
-                    findingType: "OVERLOOKED_CONTRIBUTION",
-                    severity: "INFO",
-                    description:
-                        "Additional contribution may not be reflected in the manager's summary.",
-                    rationale: context.description,
-                    status: "OPEN"
-                });
-            }
-        }
-
-        // Rule 3: Save findings without duplicates
-        let newlyCreated = 0;
-
-        for (const finding of findings) {
-            const existing = await tx.run(
-                SELECT.one.from(Findings).where({
-                    review_ID: reviewID,
-                    findingType: finding.findingType,
-                    rationale: finding.rationale
-                })
-            );
-
-            if (!existing) {
-                await tx.run(
-                    INSERT.into(Findings).entries({
-                        review_ID: reviewID,
-                        ...finding
-                    })
-                );
-
-                newlyCreated++;
-            }
-        }
-
-        // Rule 4: Record analysis in audit log
-        if (newlyCreated > 0) {
+        if (!existing) {
             await tx.run(
-                INSERT.into(AuditLogs).entries({
+                INSERT.into(Findings).entries({
                     review_ID: reviewID,
-                    actorId: req.user?.id || "DEMO_REVIEWER",
-                    action: "REVIEW_ANALYZED",
-                    details: `${newlyCreated} new findings created.`
+                    ...finding
                 })
             );
+
+            newlyCreated++;
         }
+    }
 
-        return {
-            reviewID,
-            findingsGenerated: findings.length,
-            newFindingsCreated: newlyCreated,
-            findings
-        };
-    });
+    // Rule 4: Record analysis in audit log
+    if (newlyCreated > 0) {
+        await tx.run(
+            INSERT.into(AuditLogs).entries({
+                review_ID: reviewID,
+                actorId: req.user?.id || "DEMO_REVIEWER",
+                action: "REVIEW_ANALYZED",
+                details:
+                    `${newlyCreated} new findings created. ` +
+                    `${totalClaims} manager claims analyzed using ${analysisMode} analysis.`
+            })
+        );
+    }
 
+    return {
+        reviewID,
+        findingsGenerated: findings.length,
+        newFindingsCreated: newlyCreated,
+        analysisMode,
+        totalClaims,
+        findings
+    };
+});
     // ==========================================
     // 2. FINDING RESOLUTION
     // ==========================================
@@ -186,7 +246,7 @@ export default cds.service.impl(async function () {
             SELECT.one.from(Findings).where({ ID: findingID })
         );
     });
-        
+
     // ==========================================
     // 3. SUBMIT REVIEW
     // ==========================================
@@ -300,5 +360,5 @@ export default cds.service.impl(async function () {
         };
     });
 
-    
+
 });

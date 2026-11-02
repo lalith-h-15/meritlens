@@ -32,6 +32,7 @@ entity Evidence : cuid, managed {
     title        : String(255) not null;
     description  : LargeString;
     evidenceDate : Date;
+    retrievedAt  : Timestamp;
     verified     : Boolean default false;
 }
 // 3A. Skills associated with supporting evidence

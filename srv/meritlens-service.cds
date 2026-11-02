@@ -12,6 +12,9 @@ type FindingResult {
 type AnalysisResult {
     reviewID : UUID;
     findingsGenerated : Integer;
+    newFindingsCreated : Integer;
+    analysisMode : String;
+    totalClaims : Integer;
     findings : many FindingResult;
 }
 
@@ -28,6 +31,7 @@ service MeritLensService {
     entity Employees as projection on meritlens.Employees;
     entity Reviews as projection on meritlens.Reviews;
     entity Evidence as projection on meritlens.Evidence;
+    entity EvidenceSkillMappings as projection on meritlens.EvidenceSkillMappings;
     entity ContextEntries as projection on meritlens.ContextEntries;
     entity Findings as projection on meritlens.Findings;
     entity AuditLogs as projection on meritlens.AuditLogs;
