@@ -34,6 +34,17 @@ entity Evidence : cuid, managed {
     evidenceDate : Date;
     verified     : Boolean default false;
 }
+// 3A. Skills associated with supporting evidence
+type EvidenceResult : String enum {
+    POSITIVE;
+    NEGATIVE;
+}
+
+entity EvidenceSkillMappings : cuid, managed {
+    evidence : Association to Evidence not null;
+    skill    : String(100) not null;
+    result   : EvidenceResult default #POSITIVE;
+}
 
 // 4. Context that helps explain an employee's work
 entity ContextEntries : cuid, managed {
