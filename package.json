@@ -9,6 +9,7 @@
     "build": "cds build --production"
   },
   "dependencies": {
+    "@google/genai": "^2.32.0",
     "@sap/cds": "^10"
   },
   "devDependencies": {

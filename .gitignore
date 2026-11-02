@@ -11,3 +11,7 @@ default-env.json
 .DS_Store
 
 *.sqlite-*
+
+# Local test data
+request.json
+test-employee.json

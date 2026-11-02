@@ -70,6 +70,16 @@ npm run build
 
 Do not add real employee data or credentials to this repository. Use synthetic records for development.
 
+### Gemini API test utility
+
+`gemini-test.mjs` checks `GEMINI_API_KEY` and makes live requests to Google's Gemini API to find a compatible Flash model and test content generation. Run it from the repository root with:
+
+```bash
+GEMINI_API_KEY=your-key node gemini-test.mjs
+```
+
+This utility requires a valid API key and network access. `gemini-request.json` contains a minimal sample request body.
+
 ## Frontend addition recorded
 
 The frontend was copied from the supplied `MeritLens Final` project folder into `frontend/`. The backend files at the repository root were preserved, and the frontend's local dependencies and generated build output were excluded. `frontend/dist/` was added to `.gitignore`.
